@@ -3,14 +3,11 @@
 from curses import pair_content
 import numpy as np
 import matplotlib
-import pandas as pd
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from IPython.display import display
+
 
 from numba import jit
 from time import perf_counter
-import random
 
 @jit(nopython=True)
 def vitesser(galaxies, voids, s):
