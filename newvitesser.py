@@ -9,62 +9,51 @@ import matplotlib.pyplot as plt
 from IPython.display import display
 
 from numba import jit
+from time import perf_counter
 import random
 
-# voids = pd.read_csv('/home/astro/pboccard/TP4b/DIVE-main/test.txt',sep=" ", header=None,squeeze = True,nrows = 100,engine='python')
-# #print(voids.head())
-# galaxies = pd.read_csv('/home/astro/pboccard/TP4b/FCFC/Box.dat',sep="  ", usecols = [0,1,2,3,4,5],header=None,squeeze = True,nrows = 100,engine='python')
-# #print(galaxies.head())
-
-galaxies = np.loadtxt('galaxies.txt')
-voids = np.loadtxt('voids.txt')
-
-
-voids2 = voids[(voids.iloc[:,3] > 16) & (voids.iloc[:,3] < 50)]
-rij = np.zeros([len(galaxies),len(voids2)])
-vij = np.zeros([len(galaxies),len(voids2)])
-
-s = np.zeros((120,2))
-s[:,0] = np.linspace(0.5,119.5,120)
-
-
-# np.savetxt('galaxies.txt', galaxies)
-# np.savetxt('voids.txt', galaxies)
-#np.savetxt('galaxies.txt', galaxies.values, fmt='%d')
-
-galaxies.to_csv('galaxies.txt', header=None, index=None, sep=' ')
-voids.to_csv('voids.txt', header=None, index=None, sep=' ')
-voids2.to_csv('voids2.txt', header=None, index=None, sep=' ')
-
-# print(len(galaxies))
-# print(len(voids))
-
-galaxiesnew = galaxies
-voidsnew = voids2
-
 @jit(nopython=True)
-def inner_loop(i, nvoids):
-    for j in range(nvoids):
-         rij[i,j] = np.sqrt((galaxiesnew[i,0] - voidsnew[j,0])**2 + (galaxiesnew[i,1] - voidsnew[j,1])**2 + (galaxiesnew[i,2] - voidsnew[j,2])**2)
+def vitesser(galaxies, voids, s):
+    s[:, 0] = np.linspace(0.5, 119.5, 120)
 
-         for k in range(len(s[:,0])) :
+    for i in range(len(galaxies)):
+        for j in range(len(voids)):
+            rij = np.sqrt((galaxies[i, 0] - voids[j, 0]) ** 2 + (galaxies[i, 1] - voids[j, 1]) ** 2 + (galaxies[i, 2] - voids[j, 2]) ** 2)
+            for k in range(len(s[:, 0])):
+                if (rij< s[k, 0] + 0.5) and (rij >= s[k, 0] - 0.5):
+                    s[k, 1] = s[k, 1] + ((galaxies[i, 3] * voids[j, 0]) + (galaxies[i, 4] * voids[j, 1]) + (galaxies[i, 5] * voids[j, 2])) / rij
 
-             if (rij[i,j] < s[k,0] + 0.5) and (rij[i,j] >= s[k,0] - 0.5):
+def vitesser_nonumba(galaxies, voids, s):
+    s[:, 0] = np.linspace(0.5, 119.5, 120)
 
-                 #vij[i,j] = ((galaxies.iloc[i,3]*voidsnew.iloc[j,0]) + (galaxies.iloc[i,4]*voidsnew.iloc[j,1]) + (galaxies.iloc[i,5]*voidsnew.iloc[j,2]))/rij[i,j]
-
-                 s[k,1] = s[k,1] + ((galaxiesnew[i,3]*voidsnew[j,0]) + (galaxiesnew[i,4]*voidsnew[j,1]) + (galaxiesnew[i,5]*voidsnew[j,2]))/rij[i,j]
-
-
-
-@jit(nopython=True)
-def outer_loop(ngalaxies):
-    for i in range(ngalaxies):
-        inner_loop(i, len(voidsnew))
+    for i in range(len(galaxies)):
+        for j in range(len(voids)):
+            rij = np.sqrt((galaxies[i, 0] - voids[j, 0]) ** 2 + (galaxies[i, 1] - voids[j, 1]) ** 2 + (galaxies[i, 2] - voids[j, 2]) ** 2)
+            for k in range(len(s[:, 0])):
+                if (rij < s[k, 0] + 0.5) and (rij >= s[k, 0] - 0.5):
+                    s[k, 1] = s[k, 1] + ((galaxies[i, 3] * voids[j, 0]) + (galaxies[i, 4] * voids[j, 1]) + (galaxies[i, 5] * voids[j, 2])) / rij
 
 
-outer_loop(len(galaxiesnew))
+if __name__ == "__main__":
 
-# np.savetxt('rij2.txt', rij)
-# np.savetxt('vij2.txt', vij)
-# np.savetxt('final2.txt',np.vstack([s[:,0], s[:,1]]).T)
+    # load data
+    galaxies = np.loadtxt('galaxies.txt')
+    voids = np.loadtxt('voids.txt')
+
+    # filter data
+    voids_filtered = voids[(voids[:, 3] > 16) & (voids[:, 3] < 50)]
+
+    # allocate memory
+    s = np.zeros((120, 2))
+
+    # analyze data (in-place) with numba
+    tic = perf_counter()
+    vitesser(galaxies, voids, s)
+    toc = perf_counter()
+    print(f"Analysis with numba: {toc - tic}s")
+
+    # analyze data (in-place) without numba
+    tic = perf_counter()
+    vitesser_nonumba(galaxies, voids, s)
+    toc = perf_counter()
+    print(f"Analysis without numba: {toc - tic}s")
